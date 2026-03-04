@@ -51,7 +51,6 @@ pca_df$CellType[grepl("MEM", pca_df$sample_names)] <- "Memory"
 
 
 ##### Visualization #####
-
 # Plotting
 ggplot(pca_df, aes(x = PC1, y = PC2, color = CellType, shape = Status)) +
   geom_point(size = 3) +
