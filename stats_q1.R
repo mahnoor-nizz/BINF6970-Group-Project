@@ -1,11 +1,9 @@
 # Stats 6970
 # Question 1
 
-# Overview
-# EFFE = effector
-# MEM = memory
-# Do Native T cells differentiate into EFFE first before becoming MEM?
-# Or do they differentiate into EFFE and MEM simultaneously?
+##### Overview #####
+# The purpose of this script is to perform PCA on T cell type 
+# and status, investigating the differentially expressed genes
 
 ##### Import Libraries ####
 library(ggplot2)
