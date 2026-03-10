@@ -2,6 +2,9 @@
 # PCA Analysis of T-Cell Gene Expression Data
 # Reference: Holmes et al. (2005)
 #
+# 2 PCA one sample and one gene as paper
+#dsitrubution for preprocessing
+
 # Background:
 # This analysis investigates how T cells differentiate after thymic selection.
 # Two competing models exist:
@@ -23,8 +26,69 @@ load("geneexpression2.rda")
 head(dat)
 dim(dat)  # Rows = samples, Columns = 156 differentially expressed genes
 
+##### Part 0: Pre-processing ##### ----------------------------------
 
-##### Question 1: PCA #####
+
+
+##### Multicollinearity Check #####
+# With 156 gene expression variables, traditional VIF is not appropriate
+# (more variables than observations). Instead, we assess multicollinearity
+# via: (1) correlation heatmap, (2) eigenvalue analysis of the correlation matrix.
+
+# --- Method 1: Correlation Matrix Heatmap (subset for readability) ---
+# Compute pairwise correlations between all 156 genes. This computes the Pearson correlation between every possible pair of genes — producing a 156×156 matrix where each cell contains a value between -1 and +1.
+cor_matrix <- cor(dat, use = "pairwise.complete.obs")
+
+# Visualize as heatmap — strong off-diagonal blocks indicate multicollinearity
+# Using base R heatmap to avoid extra dependencies
+#symm = TRUE — tells R the matrix is symmetric (correlation of A→B equals B→A), so it's displayed correctly.
+# colorRampPalette(c("blue", "white", "red"))(100) — creates a 100-colour gradient where:
+#  Red = strong positive correlation (+1)
+# White = no correlation (0)
+#  Blue = strong negative correlation (-1)
+heatmap(cor_matrix,
+        symm = TRUE,
+        col  = colorRampPalette(c("blue", "white", "red"))(100),
+        main = "Gene-Gene Correlation Heatmap\n(Red = high positive, Blue = high negative correlation)",
+        labRow = NA, labCol = NA)  # suppress labels — 156 genes too dense to label
+
+# --- Method 2: Proportion of near-zero eigenvalues ---
+# Eigenvalues of the correlation matrix: near-zero values signal multicollinearity
+eigenvalues <- eigen(cor_matrix)$values
+
+# Count eigenvalues below threshold (< 0.01 indicates near-singular directions)
+# When the 156×156 correlation matrix is decomposed, you get 156 eigenvalues. Each one represents how much variance exists in a particular direction of the gene expression space.
+n_small <- sum(eigenvalues < 0.01)
+print(paste0("Eigenvalues < 0.01: ", n_small, " out of ", length(eigenvalues)))
+
+# Condition number = ratio of largest to smallest eigenvalue
+# > 1000 is a strong indicator of multicollinearity
+condition_number <- max(eigenvalues) / min(eigenvalues)
+print(paste0("Condition number: ", round(condition_number, 2)))
+# Note: High condition number is EXPECTED in gene expression data due to co-regulated gene networks. PCA handles this by working in PC space, which is orthogonal (zero multicollinearity by construction).
+
+# --- Method 3: Distribution of pairwise correlations ---
+# Extract upper triangle of correlation matrix (avoid duplicates/diagonal)
+#  For 156 genes this gives 156×155/2 = 12,090 unique pairs.
+upper_tri <- cor_matrix[upper.tri(cor_matrix)]
+
+#Plots all 12,090 correlation values as a histogram.
+hist(upper_tri,
+     breaks = 50,
+     col    = "steelblue",
+     border = "white",
+     main   = "Distribution of Pairwise Gene Correlations",
+     xlab   = "Pearson Correlation Coefficient",
+     ylab   = "Frequency")
+abline(v = c(-0.8, 0.8), col = "red", lty = 2, lwd = 1.5)
+legend("topright", legend = "±0.8 threshold", col = "red", lty = 2) #Draws vertical red dashed lines at ±0.8 as a conventional threshold for "highly correlated." Anything beyond these lines is considered strongly collinear.
+
+# Report proportion of highly correlated pairs
+prop_high <- mean(abs(upper_tri) > 0.8) #Calculates what fraction of all gene pairs exceed the ±0.8 threshold — gives you a single interpretable number summarising the extent of multicollinearity.
+print(paste0("Proportion of gene pairs with |r| > 0.8: ", round(prop_high * 100, 1), "%"))
+
+
+##### Part 1: PCA ##### ----------------------------------
 
 # Scale = TRUE is appropriate for gene expression data because genes are measured on different scales; standardizing ensures no single gene dominates variance to prevent unequal weights impacting PCA.
 # - This matters because Different genes have genuinely different expression ranges.
@@ -139,64 +203,6 @@ ggplot(pca_df, aes(x = PC1, y = PC3, color = CellType, shape = Status)) +
   )
 
 
-##### Multicollinearity Check #####
-# With 156 gene expression variables, traditional VIF is not appropriate
-# (more variables than observations). Instead, we assess multicollinearity
-# via: (1) correlation heatmap, (2) eigenvalue analysis of the correlation matrix.
-
-# --- Method 1: Correlation Matrix Heatmap (subset for readability) ---
-# Compute pairwise correlations between all 156 genes. This computes the Pearson correlation between every possible pair of genes — producing a 156×156 matrix where each cell contains a value between -1 and +1.
-cor_matrix <- cor(dat, use = "pairwise.complete.obs")
-
-# Visualize as heatmap — strong off-diagonal blocks indicate multicollinearity
-# Using base R heatmap to avoid extra dependencies
-#symm = TRUE — tells R the matrix is symmetric (correlation of A→B equals B→A), so it's displayed correctly.
-# colorRampPalette(c("blue", "white", "red"))(100) — creates a 100-colour gradient where:
-#  Red = strong positive correlation (+1)
-# White = no correlation (0)
-#  Blue = strong negative correlation (-1)
-heatmap(cor_matrix,
-        symm = TRUE,
-        col  = colorRampPalette(c("blue", "white", "red"))(100),
-        main = "Gene-Gene Correlation Heatmap\n(Red = high positive, Blue = high negative correlation)",
-        labRow = NA, labCol = NA)  # suppress labels — 156 genes too dense to label
-
-# --- Method 2: Proportion of near-zero eigenvalues ---
-# Eigenvalues of the correlation matrix: near-zero values signal multicollinearity
-eigenvalues <- eigen(cor_matrix)$values
-
-# Count eigenvalues below threshold (< 0.01 indicates near-singular directions)
-# When the 156×156 correlation matrix is decomposed, you get 156 eigenvalues. Each one represents how much variance exists in a particular direction of the gene expression space.
-n_small <- sum(eigenvalues < 0.01)
-print(paste0("Eigenvalues < 0.01: ", n_small, " out of ", length(eigenvalues)))
-
-# Condition number = ratio of largest to smallest eigenvalue
-# > 1000 is a strong indicator of multicollinearity
-condition_number <- max(eigenvalues) / min(eigenvalues)
-print(paste0("Condition number: ", round(condition_number, 2)))
-# Note: High condition number is EXPECTED in gene expression data due to co-regulated gene networks. PCA handles this by working in PC space, which is orthogonal (zero multicollinearity by construction).
-
-# --- Method 3: Distribution of pairwise correlations ---
-# Extract upper triangle of correlation matrix (avoid duplicates/diagonal)
-#  For 156 genes this gives 156×155/2 = 12,090 unique pairs.
-upper_tri <- cor_matrix[upper.tri(cor_matrix)]
-
-#Plots all 12,090 correlation values as a histogram.
-hist(upper_tri,
-     breaks = 50,
-     col    = "steelblue",
-     border = "white",
-     main   = "Distribution of Pairwise Gene Correlations",
-     xlab   = "Pearson Correlation Coefficient",
-     ylab   = "Frequency")
-abline(v = c(-0.8, 0.8), col = "red", lty = 2, lwd = 1.5)
-legend("topright", legend = "±0.8 threshold", col = "red", lty = 2) #Draws vertical red dashed lines at ±0.8 as a conventional threshold for "highly correlated." Anything beyond these lines is considered strongly collinear.
-
-# Report proportion of highly correlated pairs
-prop_high <- mean(abs(upper_tri) > 0.8) #Calculates what fraction of all gene pairs exceed the ±0.8 threshold — gives you a single interpretable number summarising the extent of multicollinearity.
-print(paste0("Proportion of gene pairs with |r| > 0.8: ", round(prop_high * 100, 1), "%"))
-
-
 ##### Outlier Detection #####
 # We assess outliers in two complementary ways:
 # (1) In PCA space — samples with extreme PC scores
@@ -309,3 +315,4 @@ print(outliers_mah)
 # The correlation heatmap shows clear block structure, confirming that genes do not act independently but rather in co-regulated clusters, which is expected given the coordinated nature of T-cell gene networks. The pairwise correlation histogram reveals a bimodal distribution, suggesting two distinct gene co-expression modules — one group of genes that are strongly positively co-expressed with each other (right peak, ~0.6–0.8), and another group that behaves more independently (left peak, near 0). This bimodal structure is consistent with the two dominant axes of variation captured by PCA: the strongly correlated gene module likely drives the Naïve vs. activated cell separation along PC1, while the more independent gene module contributes to the Effector vs. Memory separation along PC2. Importantly, this multicollinearity does not affect the validity of the PCA results — the principal components are orthogonal by construction, fully eliminating redundancy in the reduced space.
 # 
 # Outliers NEED TO FINISH
+
