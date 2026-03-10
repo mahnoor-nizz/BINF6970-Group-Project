@@ -71,15 +71,15 @@ table(Y_train)
 table(Y_test)
 
 # Grid search for optimal alpha value
-alpha_grid <- seq(0, 1, .01)
-results <- data.frame()
-
 # Perform grid search (modify to take a different n-value for cross validation)
-for (a in alpha_grid) {
+alpha_search <- function (nfolds){
+  alpha_grid <- seq(0, 1, .01)
+  results <- data.frame()
+  for (a in alpha_grid) {
   # Cross-validation for current alpha; accuracy measure is deviance
   cv_model <- cv.glmnet(X_train, Y_train, 
                         alpha = a, 
-                        nfolds = 10,
+                        nfolds = nfolds,
                         family = "binomial",
                         type.measure = "deviance")
                         #keep = TRUE) # check if keep should be T or F
@@ -92,7 +92,17 @@ for (a in alpha_grid) {
     cvm_min = min(cv_model$cvm),
     cvm_1se = cv_model$cvm[which(cv_model$lambda == cv_model$lambda.1se)]
   ))
+  best_alpha_min <- results$alpha[which.min(results$cvm_min)]
+  best_alpha_1se <- results$alpha[which.min(results$cvm_1se)]
+  }
+  return(results)
 }
+
+alpha_search(10)
+best_alpha_min
+
+alpha_search(20)
+best_alpha_min
 
 # Print results
 print(results)
