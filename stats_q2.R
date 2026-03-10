@@ -154,30 +154,30 @@ cv_10$cvlo[which.max(cv_10$cvm)];cv_10$cvup[which.max(cv_10$cvm)]
 snsp_train <- cbind(AUC_train$sensitivities, AUC_train$specificities)
 snsp_train
 
-train_indx <- which.max(apply(snsp_train, 1, min))
-train_indx
-snsp_train[train_indx, ]
+indx_train <- which.max(apply(snsp_train, 1, min))
+indx_train
+snsp_train[indx_train, ]
 
-train_cutoff <- AUC_train$thresholds[train_index]
+train_cutoff <- AUC_train$thresholds[indx_train]
 train_cutoff
 
 # Test set
 snsp_test <- cbind(AUC_test$sensitivities, AUC_test$specificities)
 snsp_test
 
-test_indx <- which.max(apply(snsp_test, 1, min))
-test_indx
-snsp_test[test_indx, ]
+indx_test <- which.max(apply(snsp_test, 1, min))
+indx_test
+snsp_test[indx_test, ]
 
-test_cutoff <- AUC_test$thresholds[test_indx]
+test_cutoff <- AUC_test$thresholds[indx_test]
 test_cutoff
 
 # Make ggplot versions
 par(mfrow=c(1,2))
 plot(AUC_train)
-abline(h=snsp_train[train_indx,1],v=snsp_train[train_indx,2], col='blue', lty=2)
+abline(h=snsp_train[indx_train,1],v=snsp_train[indx_train,2], col='blue', lty=2)
 plot(AUC_test)
-abline(h=snsp_test[test_indx,1],v=snsp_test[test_indx,2], col='blue', lty=2)
+abline(h=snsp_test[indx_test,1],v=snsp_test[indx_test,2], col='blue', lty=2)
 par(mfrow=c(1,1))
 
 ## A function to compute Sensitivity and Specificity
@@ -199,4 +199,3 @@ names(coef.min[coef.min!=0])
 
 # Provide ranking of top predictors
 
-# Elastic Net 10-Fold Cross-Validation
