@@ -35,9 +35,6 @@ table(COV$SEX)
 dim(COV)       # 76 x 31
 colnames(COV)  
 
-
-# Feature Engineering ?????
-
 # === 2.1 | MODEL MATRIX AND TRAINING/TEST SETS ========
 # Create model matrix for glmnet including all effects (even quadratic?)
 #f0 <- lm(Severity ~ ., data = COV)
