@@ -1,33 +1,77 @@
 # Stats 6970 - Problem 1
 # PCA Analysis of T-Cell Gene Expression Data
 # Reference: Holmes et al. (2005)
-#
-# 2 PCA one sample and one gene as paper
-#dsitrubution for preprocessing
 
 # Background:
 # This analysis investigates how T cells differentiate after thymic selection.
 # Two competing models exist:
 #   - Linear model: NAI -> EFFE -> MEM
-#   - Parallel model: NAI -> EFFE and MEM simultaneously
+#   - Parallel model: NAI -> EFFE and MEM (simultaneously)
 #
-# Dataset: 156 most differentially expressed genes (Holmes et al., 2005)
+# Dataset: 156 differential expressed genes (Holmes et al., 2005)
 # Row name format: [Status]_[CellType]_[ID]
 #   Status:   HEA = Healthy, MEL = Melanoma
 #   CellType: NAI = Naïve, EFFE = Effector, MEM = Memory
 # Each column = a gene's expression measurement (a numeric value indicating how highly/lowly that gene is expressed in that sample)
 
-##### Import Libraries ####
+# ---------------------- Import Libraries ----------------------------
 library(ggplot2)
 library(ggfortify)
 
 # Load the gene expression file and explore the data
 load("geneexpression2.rda")
 head(dat)
-dim(dat)  # Rows = samples, Columns = 156 differentially expressed genes
+dim(dat) # Rows = samples, Columns = 156 differentially expressed genes
 
-##### Part 0: Pre-processing ##### ----------------------------------
+# Extract cell type counts
+cell_types <- ifelse(grepl("NAI", rownames(dat)), "Naive",
+                     ifelse(grepl("EFFE", rownames(dat)), "Effector", "Memory"))
 
+table(cell_types)
+
+#----------------- Part 0: Pre-processing --------------------------
+##### Distribution of raw data #####
+# Histogram of all expression values across all genes
+hist(as.matrix(dat),
+     breaks = 50,
+     main = "Distribution of Raw Gene Expression Values",
+     xlab = "Expression Value",
+     ylab = "Frequency")
+
+##### Outliers Detection #####
+# Standardize the raw gene expression data
+dat_scaled <- scale(dat)
+
+# Compute a summary outlier score for each sample
+# Using the maximum absolute z-score across all genes
+sample_outlier_score <- apply(abs(dat_scaled), 1, max)
+
+# Identify samples with extreme expression values
+# Threshold: |z| > 3
+outlier_samples <- sample_outlier_score > 3
+
+# Create results table
+outlier_df <- data.frame(
+  Sample = rownames(dat),
+  Max_Zscore = sample_outlier_score,
+  Outlier = outlier_samples
+)
+
+print("Samples flagged as potential outliers (|z| > 3):")
+print(outlier_df[outlier_df$Outlier == TRUE, ])
+
+ggplot(outlier_df, aes(x = reorder(Sample, Max_Zscore), y = Max_Zscore, fill = Outlier)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  geom_hline(yintercept = 3, linetype = "dashed", color = "red") +
+  scale_fill_manual(values = c("FALSE" = "steelblue", "TRUE" = "red")) +
+  theme_minimal(base_size = 12) +
+  labs(
+    title = "Sample Outlier Detection (Before PCA)",
+    subtitle = "Maximum absolute z-score across 156 genes",
+    x = "Sample",
+    y = "Max |Z-score|"
+  )
 
 
 ##### Multicollinearity Check #####
@@ -88,8 +132,7 @@ prop_high <- mean(abs(upper_tri) > 0.8) #Calculates what fraction of all gene pa
 print(paste0("Proportion of gene pairs with |r| > 0.8: ", round(prop_high * 100, 1), "%"))
 
 
-##### Part 1: PCA ##### ----------------------------------
-
+# ------------------------- Part 1: PCA -------------------------------
 # Scale = TRUE is appropriate for gene expression data because genes are measured on different scales; standardizing ensures no single gene dominates variance to prevent unequal weights impacting PCA.
 # - This matters because Different genes have genuinely different expression ranges.
 # - Ensures PCA reflects patterns of co-variation across genes, not just which genes happen to have large absolute values.
@@ -99,17 +142,38 @@ summary(pca_res)
 
 ## Calculate variance explained by each PC
 # Eigenvalues = squared standard deviations of each PC
-variance <- pca_res$sdev^2
+eigenvalues_samples <- pca_res$sdev^2
 
 # Proportion of total variance explained (as percentages)
-var_explained <- variance / sum(variance) * 100
+var_explained <- eigenvalues_samples / sum(eigenvalues_samples) * 100
 
 # Print variance explained for key PCs
 print(paste0("PC1 variance explained: ", round(var_explained[1], 2), "%"))
 print(paste0("PC2 variance explained: ", round(var_explained[2], 2), "%"))
+print(paste0("PC3 variance explained: ", round(var_explained[3], 2), "%"))
 print(paste0("Cumulative variance (PC1+PC2): ", round(sum(var_explained[1:2]), 2), "%"))
 
-# --- Scree Plot: to justify how many PCs to retain ---
+##### Gene PCA (transpose of data matrix) #####
+
+# Transpose: genes become rows, samples become columns
+# Now each observation is a gene, described by its expression across 30 samples
+pca_genes <- prcomp(t(dat), scale. = TRUE)
+
+# Variance explained
+eigenvalues_genes <- pca_genes$sdev^2
+var_genes_explained <- eigenvalues_genes / sum(eigenvalues_genes) * 100
+
+# Build plot data frame — each row is a gene
+gene_df <- as.data.frame(pca_genes$x)
+gene_df$gene <- rownames(gene_df)
+
+# Print key PCs
+print(paste0("Gene PC1 variance explained: ", round(var_genes_explained[1], 2), "%"))
+print(paste0("Gene PC2 variance explained: ", round(var_genes_explained[2], 2), "%"))
+print(paste0("Gene PC3 variance explained: ", round(var_genes_explained[3], 2), "%"))
+print(paste0("Cumulative variance (PC1+PC2): ", round(sum(var_genes_explained[1:2]), 2), "%"))
+
+# --- Scree Plot for samples: to justify how many PCs to retain ---
 # This creates a table with 3 columns:
 # PC — the PC number
 # VarianceExplained — the % variance each individual PC explains
@@ -121,24 +185,52 @@ scree_df <- data.frame(
   Cumulative = cumsum(var_explained)[1:min(20, length(var_explained))]
 )
 
-# Each bar height = the variance explained by that individual PC. 
-# stat = "identity" tells ggplot to use the actual values in the data rather than counting anything.
-# This overlays a second layer using the Cumulative column on the same y-axis as the bars. The line climbs from left to right, showing how quickly the PCs collectively explain the total variance — if it flattens early, the first few PCs are sufficient.
-ggplot(scree_df, aes(x = PC, y = VarianceExplained)) +
-  geom_bar(stat = "identity", fill = "steelblue", alpha = 0.8) +
-  geom_line(aes(y = Cumulative), color = "darkred", linewidth = 0.8) +
-  geom_point(aes(y = Cumulative), color = "darkred", size = 2) +
+scree_samples_df <- data.frame(
+  PC           = 1:min(20, length(eigenvalues_samples)),
+  Eigenvalue   = eigenvalues_samples[1:min(20, length(eigenvalues_samples))]
+)
+
+ggplot(scree_samples_df, aes(x = PC, y = Eigenvalue)) +
+  geom_line(color = "steelblue", linewidth = 0.8) +
+  geom_point(color = "steelblue", size = 3) +
   scale_x_continuous(breaks = 1:20) +
   theme_minimal(base_size = 12) +
   labs(
-    title = "Scree Plot: Variance Explained by Each Principal Component",
-    x = "Principal Component",
-    y = "Variance Explained (%)",
-    caption = "Red line = cumulative variance explained"
+    title   = "Scree Plot — Sample PCA",
+    x       = "Principal Component",
+    y       = "Eigenvalue"
   )
 
+# Each bar height = the variance explained by that individual PC. 
+# stat = "identity" tells ggplot to use the actual values in the data rather than counting anything.
+# This overlays a second layer using the Cumulative column on the same y-axis as the bars. The line climbs from left to right, showing how quickly the PCs collectively explain the total variance — if it flattens early, the first few PCs are sufficient.
 
-##### Question 2: Visualize and Investigate PCs #####
+
+
+
+
+
+##### Scree Plot for gene #####
+# Scree plot data frame — capped at 30 PCs
+# (gene PCA can only have min(156, 30)-1 = 29 meaningful PCs
+# since we only have 30 samples as variables)
+scree_genes_df <- data.frame(
+  PC         = 1:min(30, length(eigenvalues_genes)),
+  Eigenvalue = eigenvalues_genes[1:min(30, length(eigenvalues_genes))]
+)
+
+ggplot(scree_genes_df, aes(x = PC, y = Eigenvalue)) +
+  geom_line(color = "steelblue", linewidth = 0.8) +
+  geom_point(color = "steelblue", size = 3) +
+  scale_x_continuous(breaks = 1:30) +
+  theme_minimal(base_size = 12) +
+  labs(
+    title    = "Scree Plot — Gene PCA",
+    x        = "Principal Component",
+    y        = "Eigenvalue"
+  )
+
+#----------------- Part 2: Visualize and Investigate PCs -------------
 
 # Build a data frame with PC scores and extracted metadata
 #pca_res$x contains the PC scores — the coordinates of each sample in the new PC space. Converting to a data frame and saving row names (e.g. HEA26_EFFE_1) allows the extraction of metadata from them.
@@ -158,6 +250,7 @@ pca_df$CellType[grepl("MEM",  pca_df$sample_names)] <- "Memory"
 # Forces the legend and any downstream grouping to follow biological order rather than alphabetical — Naïve comes first since it's the precursor cell type.
 pca_df$CellType <- factor(pca_df$CellType, levels = c("Naïve", "Effector", "Memory"))
 
+
 # --- Primary PCA Scatter Plot: PC1 vs PC2 ---
 #x/y axes → PC1 and PC2 scores (the two directions of most variance)
 #color → cell type
@@ -176,38 +269,30 @@ ggplot(pca_df, aes(x = PC1, y = PC2, color = CellType, shape = Status)) +
   theme(legend.position = "right") +
   labs(
     title = "PCA of T-Cell Gene Expression (PC1 vs PC2)",
-    subtitle = "Color = Cell Type | Shape = Subject Status",
     x = paste0("PC1 (", round(var_explained[1], 1), "% variance explained)"),
-    y = paste0("PC2 (", round(var_explained[2], 1), "% variance explained)"),
-    caption = "Data: 156 differentially expressed genes from Holmes et al. (2005)"
+    y = paste0("PC2 (", round(var_explained[2], 1), "% variance explained)")
   )
 
-# --- Secondary Plot: PC1 vs PC3 (to check additional structure) ---
-ggplot(pca_df, aes(x = PC1, y = PC3, color = CellType, shape = Status)) +
-  geom_point(size = 3.5, alpha = 0.85) +
-  scale_color_manual(
-    name = "Cell Type",
-    values = c("Naïve" = "#2ca02c", "Effector" = "#d62728", "Memory" = "#1f77b4")
-  ) +
-  scale_shape_manual(
-    name = "Subject Status",
-    values = c("Healthy" = 15, "Melanoma" = 17)
-  ) +
+
+
+##### Gene PCA Scatter Plots #####
+gene_df <- as.data.frame(pca_genes$x)
+
+ggplot(gene_df, aes(x = PC1, y = PC2)) +
+  geom_point(size = 2, alpha = 0.6, color = "steelblue") +
   theme_minimal(base_size = 12) +
   labs(
-    title = "PCA of T-Cell Gene Expression (PC1 vs PC3)",
-    subtitle = "Color = Cell Type | Shape = Subject Status",
-    x = paste0("PC1 (", round(var_explained[1], 1), "%)"),
-    y = paste0("PC3 (", round(var_explained[3], 1), "%)"),
-    caption = "Data: 156 differentially expressed genes from Holmes et al. (2005)"
+    title   = "Gene PCA — PC1 vs PC2",
+    x       = paste0("PC1 (", round(var_genes_explained[1], 1), "%)"),
+    y       = paste0("PC2 (", round(var_genes_explained[2], 1), "%)")
   )
 
 
-##### Outlier Detection #####
+
+##### Outlier Detection for PCA #####
 # We assess outliers in two complementary ways:
 # (1) In PCA space — samples with extreme PC scores
 # (2) Mahalanobis distance — multivariate distance from group centroid
-
 # --- Method 1: PC Score Outliers (boxplots on PC1 and PC2) ---
 par(mfrow = c(1, 2)) #Splits the plot window into 1 row and 2 columns so both boxplots appear side by side.
 
@@ -237,7 +322,7 @@ pc2_mean <- mean(pca_df$PC2); pc2_sd <- sd(pca_df$PC2)
 #is this sample more than 3 standard deviations away from the centre? The 3 SD rule comes from the normal distribution where 99.7% of data falls within 3 SD — anything beyond is unusual.
 outliers_pc <- pca_df[
   abs(pca_df$PC1 - pc1_mean) > 3 * pc1_sd |
-  abs(pca_df$PC2 - pc2_mean) > 3 * pc2_sd, 
+    abs(pca_df$PC2 - pc2_mean) > 3 * pc2_sd, 
   c("sample_names", "CellType", "Status", "PC1", "PC2")
 ]
 print("Samples flagged as outliers (>3 SD on PC1 or PC2):")
@@ -287,7 +372,7 @@ ggplot(pca_df, aes(x = seq_len(nrow(pca_df)), y = MahalanobisD,
 
 # Print flagged outliers
 outliers_mah <- pca_df[pca_df$Outlier == TRUE,
-                        c("sample_names", "CellType", "Status", "PC1", "PC2", "MahalanobisD")]
+                       c("sample_names", "CellType", "Status", "PC1", "PC2", "MahalanobisD")]
 print("Samples flagged as multivariate outliers (Mahalanobis, p < 0.001):")
 print(outliers_mah)
 
@@ -295,6 +380,9 @@ print(outliers_mah)
 ##### Question 3: Interpretation #####
 #
 # The PCA plot reveals clear clustering by cell type along PC1 and PC2, with the three T-cell populations (Naïve, Effector, Memory) forming distinct, well-separated groups.
+
+# Prior to PCA, potential sample outliers were assessed using standardized gene expression values (z-scores). For each sample, the maximum absolute z-score across all genes was calculated. Samples with |z| > 3 were flagged as potential outliers. This approach is appropriate for high-dimensional gene expression data because it summarizes extreme expression values across many genes while accounting for differences in gene scale.
+
 #
 # PC1 (63.8%) — Differentiation Axis
 # PC1 explains the overwhelming majority of variance and clearly separates cell types. Naïve cells sit on the right (positive PC1), while Effector cells cluster on the far left (negative PC1), with Memory cells sitting between them but closer to Effector. This axis represents the primary transcriptional shift that occurs when a Naïve T cell encounters an antigen and becomes activated.
@@ -315,4 +403,6 @@ print(outliers_mah)
 # The correlation heatmap shows clear block structure, confirming that genes do not act independently but rather in co-regulated clusters, which is expected given the coordinated nature of T-cell gene networks. The pairwise correlation histogram reveals a bimodal distribution, suggesting two distinct gene co-expression modules — one group of genes that are strongly positively co-expressed with each other (right peak, ~0.6–0.8), and another group that behaves more independently (left peak, near 0). This bimodal structure is consistent with the two dominant axes of variation captured by PCA: the strongly correlated gene module likely drives the Naïve vs. activated cell separation along PC1, while the more independent gene module contributes to the Effector vs. Memory separation along PC2. Importantly, this multicollinearity does not affect the validity of the PCA results — the principal components are orthogonal by construction, fully eliminating redundancy in the reduced space.
 # 
 # Outliers NEED TO FINISH
+
+
 
