@@ -296,4 +296,3 @@ ggplot(gene_df, aes(x = PC1, y = PC2)) +
     x       = paste0("PC1 (", round(var_genes_explained[1], 1), "%)"),
     y       = paste0("PC2 (", round(var_genes_explained[2], 1), "%)")
   )
-
