@@ -135,6 +135,7 @@ get_cutoff <- function(AUC) {
                     sensitivity = snsp[indx, 1],
                     specificity = snsp[indx, 2]))
 } # get_metrics already gets sn and sp, so might be redundant for this function
+# I agree I had it in there before I changed the get metrics function
 
 # Function to obtain metrics from confusion matrix
 get_metrics <- function(mat) {
@@ -202,7 +203,7 @@ coef_10_min[coef.min!=0]
 selected_10  <- sort(abs(coef_10_min[coef_10_min != 0]), decreasing = TRUE)
 selected_10 
 # With 10-fold CV and using min for alpha and lambda, elastic net regression selected 12 relevant variables
-# Notes: AGE has the most influence; all are positive so increasing these by 1 unit increases severity by the corresponding coefficient value
+# Notes: AGE has the most influence; all are positive so increasing these by 1 unit increases severity by the corresponding coefficient value 
 
 # Ranking of top predictors TO-DO: make ggplot version
 par(mar = c(9, 4, 4, 2))
@@ -286,7 +287,8 @@ boxplot(AGE ~ Severity, data = COV)
 # Model with age as only predictor
 model_age <- glm(Severity ~ AGE, data = COV, family = "binomial")
 summary(model_age)
-### 4.3% decrease in odds per 1 unit increase in age???
+### 4.3% decrease in odds per 1 unit increase in age??? 
+# yeah that kinda makes sense based on the graph below, I think its because most ages in the mild range were over 50 while severe had ones in their 20s. the correlation thing under also gives a negative value 
 
 # Correlation of age with predicted probability in 10 and 20 fold model
 prd_all_10 <- predict(cv_10, newx = X, type = "response", s = cv_10$lambda.min)[, 1]
@@ -304,9 +306,12 @@ ggplot(data.frame(Age = COV$AGE, Prob = prd_all_10, Severity = factor(COV$Severi
        x = "Age (years)", y = "Probability of Severity") +
   theme_bw()
 ### I don't get this graph, please explain later
+# its like the one we did in another class I made it based on that but idk if it is actually meaningful lol, it just shows that when age increases your probability of severeity decreases, 
+#which is supported by both the correlation thing and your model with age as the only predictor
 
 
 ### I don't think we really need to do this part since she never taught us but I'll leave this here for now
+#I'm also good with getting rid of it i dont think its necessary
 # Statistical significance of cytokines
 wilcox_results <- data.frame()
 
