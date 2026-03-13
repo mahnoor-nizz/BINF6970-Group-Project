@@ -265,14 +265,14 @@ coef_10_min <- coef(cv_10,s = cv_10$lambda.min)[-1,1]
 
 # With 10-fold CV and using min for alpha and lambda, elastic net regression selected 9 relevant variables; 7 are negative and 2 are positive
 
-selected_10  <- sort(abs(coef_10_min[coef_10_min != 0]), decreasing = TRUE)
+select_10  <- sort(abs(coef_10_min[coef_10_min != 0]), decreasing = TRUE)
 cat("Selected predictors (10-Fold, lambda.min):") 
 print(round(coef_10_min[coef_10_min != 0], 4))
-cat("Number of non-zero predictors:", length(selected_10))
-cat("Most influential predictor:", names(selected_10)[1])
+cat("Number of non-zero predictors:", length(select_10))
+cat("Most influential predictor:", names(select_10)[1])
 
-selected_10 <- data.frame(Predictor = names(selected_10),
-                          Value = selected_10)
+selected_10 <- data.frame(Predictor = names(select_10),
+                          Value = select_10)
 selected_10$Predictor <- factor(selected_10$Predictor, levels = selected_10$Predictor)
 rownames(selected_10) <- NULL
 # Notes: TNF-a has the most influence
@@ -292,11 +292,7 @@ ggplot(selected_10, aes(x = Predictor, y = Value)) +
 
 
 # what are your thoughts on this kinda graph instead
-df_coef_10 <- data.frame(
-  Predictor   = names(selected_10),
-  Coefficient = selected_10,
-  Direction   = ifelse(coef_10_min[names(selected_10)] > 0, "Positive", "Negative")
-)
+df_coef_10 <- data.frame(Predictor = names(select_10), Coefficient = select_10, Direction = ifelse(coef_10_min[names(select_10)] > 0, "Positive", "Negative"))
 
 ggplot(df_coef_10, aes(x = reorder(Predictor, Coefficient), y = Coefficient, fill = Direction)) +
   geom_col() +
@@ -323,7 +319,7 @@ AUC_test_20  <- roc(Y_test,  prd_test_20)
 cat("Training AUC:", auc(AUC_train_20))
 cat("Test AUC:    ", auc(AUC_test_20))
 
-# Determine cutoffs for model with 10-folds
+# Determine cutoffs for model with 20-folds
 cut_train_20 <- get_cutoff(AUC_train_20)
 cut_test_20 <- get_cutoff(AUC_test_20)
 cat("Training set optimal cutoff:"); print(cut_train_20)
@@ -333,9 +329,9 @@ cat("Test set optimal cutoff:"); print(cut_test_20)
 # Make confusion matrix for model
 conf_20 <- table(y = Y_test, yhat = as.numeric(prd_test_20 > cut_test_20$cutoff))
 conf_20
-get_metrics(conf_20)
-cat("Confusion Matrix (20-Fold):"); print(conf_20)
-cat("Performance Metrics (20-Fold):"); print(get_metrics(conf_20))
+metrics_10 <- get_metrics(conf_20)
+cat("Confusion Matrix (20-Fold):\n"); print(conf_20)
+cat("Performance Metrics (20-Fold):\n"); print(get_metrics(conf_20))
 
 # Plot ROC curve with optimal cutoff
 # Training set
@@ -398,15 +394,15 @@ coef_20_min[coef_20_min!=0]
 
 # With 20-fold CV and using min for alpha and lambda, elastic net regression selected 9 relevant variables; 8 are negative and 1 is positive
 
-selected_20  <- sort(abs(coef_20_min[coef_20_min != 0]), decreasing = TRUE)
+select_20  <- sort(abs(coef_20_min[coef_20_min != 0]), decreasing = TRUE)
 
 cat("Selected predictors (20-Fold):")
 print(round(coef_20_min[coef_20_min != 0], 4))
-cat("Number of non-zero predictors:", length(selected_20))
-cat("Most influential predictor:", names(selected_20)[1])
+cat("Number of non-zero predictors:", length(select_20))
+cat("Most influential predictor:", names(select_20)[1])
 
-selected_20 <- data.frame(Predictor = names(selected_20),
-                          Value = selected_20)
+selected_20 <- data.frame(Predictor = names(select_20),
+                          Value = select_20)
 selected_20$Predictor <- factor(selected_20$Predictor, levels = selected_20$Predictor)
 rownames(selected_20) <- NULL
 # Notes: TNF-a has the most influence
@@ -435,11 +431,37 @@ ggroc(list("10-Fold" = AUC_test_10, "20-Fold" = AUC_test_20), linewidth = 1) +
   theme(plot.title = element_text(face = "bold", hjust = 0.5))
 
 # For MN: please compare the predictors in the 10-fold and 20-fold models; idk how but show which ones wre exclusive in one and shared in both
+# would a table work here 
+
+comparison_df <- data.frame(
+  Metric = c("Alpha (lambda.min)", "Train AUC", "Test AUC", "Test Sensitivity", "Test Specificity", "Test Accuracy", "Predictors Selected"),
+  `10-Fold` = c(best_min_10, round(auc(AUC_train_10), 4), round(auc(AUC_test_10), 4), round(metrics_10["sensitivity"], 4), round(metrics_10["specificity"], 4), round(metrics_10["accuracy"], 4), length(selected_10)),
+  `20-Fold` = c(best_min_20, round(auc(AUC_train_20), 4), round(auc(AUC_test_20), 4), round(metrics_20["sensitivity"], 4), round(metrics_20["specificity"], 4), round(metrics_20["accuracy"], 4), length(select_20)))
+print(comparison_df, row.names = FALSE)
+
+#
+#Shared vs exclusive predictors i feel like we have enough graphs ;-;
+vars_10 <- names(select_10)
+vars_20 <- names(select_20)
+shared <- intersect(vars_10, vars_20)
+only_10 <- setdiff(vars_10, vars_20)
+only_20 <- setdiff(vars_20, vars_10)
+
+cat("Shared predictors (in both models):", paste(shared,  collapse = ", "))
+cat("Exclusive to 10-fold model:", paste(only_10, collapse = ", "))
+cat("Exclusive to 20-fold model:", paste(only_20, collapse = ", "))
+
+
+#combined coefficient data frame for if i can figure out how i wanna plot this
+all_preds <- union(vars_10, vars_20)
+df_compare <- data.frame(Predictor = all_preds, Coef_10 = coef_10_min[all_preds], Coef_20 = coef_20_min[all_preds], 
+                         Group = ifelse(all_preds %in% shared, "Shared", ifelse(all_preds %in% only_10, "10-Fold Only", "20-Fold Only")))
+
 
 # === 4 | STATISTICAL ANALYSIS OF PREDICTORS ======== #TO-DO: check if this is correct
 # Wilcoxon test for age 
 wilcox.test(AGE ~ Severity, data = COV) #p-value = 0.02017
-boxplot(AGE ~ Severity, data = COV)
+cat("Wilcoxon test for Age ~ Severity: p-value =", round(wtest_age$p.value, 4))
 
 # Model with age as only predictor
 model_age <- glm(Severity ~ AGE, data = COV, family = "binomial")
@@ -449,10 +471,11 @@ summary(model_age)
 
 # Correlation of age with predicted probability in 10 and 20 fold model
 prd_all_10 <- predict(cv_10, newx = X, type = "response", s = cv_10$lambda.min)[, 1]
-cor(COV$AGE, prd_all_10)
-
 prd_all_20 <- predict(cv_20, newx = X, type = "response", s = cv_20$lambda.min)[, 1]
-cor(COV$AGE, prd_all_20)
+
+cat("Correlation of Age with predicted severity probability:")
+cat("10-Fold model:", round(cor(COV$AGE, prd_all_10), 4))
+cat("20-Fold model:", round(cor(COV$AGE, prd_all_20), 4))
 
 # Scatterplot of age vs probability
 ggplot(data.frame(Age = COV$AGE, Prob = prd_all_10, Severity = factor(COV$Severity, labels = c("Mild","Severe"))), aes(x = Age, y = Prob, color = Severity)) +
@@ -468,7 +491,7 @@ ggplot(data.frame(Age = COV$AGE, Prob = prd_all_10, Severity = factor(COV$Severi
 # Statistical significance of cytokines
 wilcox_results <- data.frame()
 
-for (i in names(selected_10)) {if (i %in% colnames(X)) {
+for (i in names(select_10)) {if (i %in% colnames(X)) {
   test <- wilcox.test(X[, i] ~ COV$Severity)
   
   wilcox_results <- rbind(wilcox_results, data.frame(
