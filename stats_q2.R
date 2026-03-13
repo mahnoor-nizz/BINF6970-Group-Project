@@ -258,7 +258,7 @@ rownames(selected_10) <- NULL
 ggplot(selected_10, aes(x = Predictor, y = Value)) +
   geom_col(fill = "navy") +
   geom_text(aes(label = signif(Value, 3)), vjust = -0.5) +
-  labs(title = "Top Selected Predictors - 20-Fold Elastic Net (lambda.min)",
+  labs(title = "Top Selected Predictors - 10-Fold Elastic Net (lambda.min)",
        x = "Predictor",
        y = "Coefficient score") +
   theme_minimal() +
@@ -282,7 +282,7 @@ AUC_test_20  <- roc(Y_test,  prd_test_20)
 auc(AUC_train_20)
 auc(AUC_test_20)
 
-# Determine cutoffs for model with 10-folds
+# Determine cutoffs for model with 20-folds
 cut_train_20 <- get_cutoff(AUC_train_20)
 cut_test_20 <- get_cutoff(AUC_test_20)
 cut_train_20
@@ -388,7 +388,7 @@ wilcox.test(AGE ~ Severity, data = COV) #p-value = 0.02017
 boxplot(AGE ~ Severity, data = COV)
 
 # Model with age as only predictor
-model_age <- glm(Severity ~ AGE, data = COV, family = "binomial")
+model_age <- glm(Severity ~ AGE +, data = COV, family = "binomial")
 summary(model_age)
 ### 4.3% decrease in odds per 1 unit increase in age??? 
 # yeah that kinda makes sense based on the graph below, I think its because most ages in the mild range were over 50 while severe had ones in their 20s. the correlation thing under also gives a negative value 
@@ -409,21 +409,17 @@ ggplot(data.frame(Age = COV$AGE, Prob = prd_all_10, Severity = factor(COV$Severi
        x = "Age (years)", y = "Probability of Severity") +
   theme_bw()
 
-### I don't think we really need to do this part since she never taught us but I'll leave this here for now
-#I'm also good with getting rid of it i dont think its necessary
-# Statistical significance of cytokines
-wilcox_results <- data.frame()
+# Modelling effects of age and cytokines 
+summary(glm(Severity ~ AGE + `TNF-α` + CD28 + `MCP-1` + `IL-6` + CD27 + `CCL2/JE/MCP-1` + `CXCL10/IP-10/CRG-2`, data = COV, family = binomial)) # Predictors from 10-fold (TLR-2 not included as it is not a cytokine); IL-6, CD28, and MCP-1 remain statistically significant, 
 
-for (i in names(selected_10)) {if (i %in% colnames(X)) {
-  test <- wilcox.test(X[, i] ~ COV$Severity)
-  
-  wilcox_results <- rbind(wilcox_results, data.frame(
-    Predictor = i,
-    W_statistic = test$statistic,
-    p_value = round(test$p.value, 4),
-    Significant = ifelse(test$p.value < 0.05, "Yes", "No")))}}
+summary(glm(Severity ~ AGE + `TNF-α` + `IL-6` + CD27 + CD28 + `MCP-1` + `PD-L2-5` + `PD-L2`, data = COV, family = binomial)) # Predictors from 20-fold (PTX3 not included as it is not a cytokine)
+# Age is not significant when cytokines are included, so cytokines may be confounding; as such, need to see interactions of age with cytokines; IL-6 remains statistically significant, PD-L2-5 and PD-L2 are multicollinear
 
-print(wilcox_results[order(wilcox_results$p_value), ])
+# Modelling effects of age interactions with cytokines
+summary(glm(Severity ~ AGE * (`TNF-α` + CD28 + `MCP-1` + `IL-6` + CD27 + `CCL2/JE/MCP-1` + `CXCL10/IP-10/CRG-2`), data = COV, family = binomial)) # Predictors from 10-fold
+# TNF-a, CD28, IL-6, and CD27, and their interactions with age are statistically significant
 
+summary(glm(Severity ~ AGE * (`TNF-α` + `IL-6` + CD27 + CD28 + `MCP-1` + `PD-L2-5` + `PD-L2`), data = COV, family = binomial)) # Predictors from 20-fold
+# Age is not significant when alone, but is significant when including interactions; effects of CD27 and TNF-a decrease with age while effects of CD28, IL-6, and PD-L2-5 increase with age
 
 
