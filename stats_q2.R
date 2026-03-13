@@ -33,7 +33,13 @@ dim(COV)       # 76 x 31
 colnames(COV)  
 
 # === 1.2| EXPLORATORY DATA ANALYSIS ========
-# For MN: can you add the EDA plots here
+# Age distribution by severity boxplot 
+
+ggplot(data.frame(Age = COV$AGE, Severity = COV$Severity), aes(x = Severity, y = Age, fill = Severity)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 16) +
+  labs(title = "Age Distribution by COVID-19 Severity", x = "Severity Group", y = "Age (years)") +
+  theme_bw() +
+  theme(legend.position = "none")
 
 
 # === 2.1 | MODEL MATRIX AND TRAINING/TEST SETS ========
