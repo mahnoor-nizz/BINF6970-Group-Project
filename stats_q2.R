@@ -461,6 +461,7 @@ df_compare <- data.frame(Predictor = all_preds, Coef_10 = coef_10_min[all_preds]
 # === 4 | STATISTICAL ANALYSIS OF PREDICTORS ======== #TO-DO: check if this is correct
 # Wilcoxon test for age 
 wilcox.test(AGE ~ Severity, data = COV) #p-value = 0.02017
+wtest_age <- wilcox.test(AGE ~ Severity, data = COV)
 cat("Wilcoxon test for Age ~ Severity: p-value =", round(wtest_age$p.value, 4))
 
 # Model with age as only predictor
