@@ -267,3 +267,10 @@ ggplot(loadings, aes(x = PC1, y = PC2)) +
     x = "PC1 Loading",
     y = "PC2 Loading"
   )
+
+# Check which genes have the highest positive/negative PC1 loadings
+head(loadings[order(-loadings$PC1), c("gene", "PC1")], 5)
+head(loadings[order( loadings$PC1), c("gene", "PC1")], 5)
+
+# Then check the mean PC1 score per cell type to confirm direction
+aggregate(PC1 ~ CellType, data = pca_df, FUN = mean)
