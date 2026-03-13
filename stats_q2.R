@@ -15,10 +15,11 @@ COV <- read_excel("Immunologic profiles of patients with COVID-19.xlsx")
 str(COV) # dataset contains measurements of 28 analytes from 76 COVID-19-positive patients; response variable: severity (binary, mild vs. severe)
 
 # Checking for missing values
-sum(is.na(COV)) # no missing values
+cat("Number of missing values:", sum(is.na(COV))) # no missing values
 
 # Convert severity to a factor variable
 COV$Severity <- as.factor(COV$Severirty)
+cat("Severity class distribution:")
 table(COV$Severity) # 32 mild, 44 severe
 
 # Remove Patient Number and Severirty
@@ -29,24 +30,38 @@ str(COV) # SEX is still character
 COV$SEX <- ifelse(COV$SEX == "F", 1, 0)
 table(COV$SEX)  
 
-dim(COV)       # 76 x 31
-colnames(COV)  
+cat("Dataset dimensions:", dim(COV))
+cat("Column names:")
+print(colnames(COV))
 
 # === 1.2| EXPLORATORY DATA ANALYSIS ========
 # Age distribution by severity boxplot 
 
 ggplot(data.frame(Age = COV$AGE, Severity = COV$Severity), aes(x = Severity, y = Age, fill = Severity)) +
-  geom_boxplot(alpha = 0.7, outlier.shape = 16) +
+  geom_boxplot() +
   labs(title = "Age Distribution by COVID-19 Severity", x = "Severity Group", y = "Age (years)") +
   theme_bw() +
   theme(legend.position = "none")
 
+ #Cytokine distribution by severity, single combined plot to be added
+
+# === 1.3 Assumption checks ========
+
+#Class Balance
+sev_tab <- table(COV$Severity)
+print(sev_tab)
+cat("Class ratio (mild:severe):", round(sev_tab[1] / sev_tab[2], 2), "\n")
+#Classes reasonably balanced, so no resampling required?
+
+#Multicollinearity check maybe a correlation heatmap of the predictors
 
 # === 2.1 | MODEL MATRIX AND TRAINING/TEST SETS ========
 # Create model matrix for glmnet including all effects 
 X <- model.matrix(Severity ~., COV)[, -1]
-dim(X) # 30 predictor variables
-colnames(X)
+cat("Predictor matrix dimensions:", dim(X))
+cat("Predictor names:")
+print(colnames(X))
+
 
 Y <- COV$Severity # severity set as response variable
 
@@ -65,9 +80,10 @@ X_test <- X[-train_index, ]
 Y_test <- Y[-train_index]
 
 ## Confirm class balance in train and test
-table(Y_train) # 57 total, 42% in mild, 58% in severe
-table(Y_test) # 19 total, 42% in mild, 58% in severe
-
+cat("Training set class distribution:")
+print(table(Y_train)) # 57 total, 42% in mild, 58% in severe
+cat("Test set class distribution:")
+print(table(Y_test)) # 19 total, 42% in mild, 58% in severe
 
 # === 2.2 | GRID SEARCH FOR ALPHA ========
 # Function to perform grid search for optimal alpha value with different n-folds 
