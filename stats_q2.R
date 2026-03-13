@@ -6,6 +6,9 @@ library(GGally)
 library(pROC)
 library(MASS)
 library(caret)
+library(reshape2)  
+library(tidyr)   
+library(dplyr)
 
 ### TO-DO: print or cat important statistics after each analysis
 ### TO-DO: need analysis or comparison between 10 and 20-fold (e.g. their predictive performance metrics + which cytokines they selected) --> put into combined visualization
