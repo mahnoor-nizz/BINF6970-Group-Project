@@ -77,7 +77,6 @@ alpha_search <- function (X, Y, nfolds){
                         family = "binomial",
                         keep = T,
                         standardize = T,
-                        foldid = sample(rep(1:nfolds, length.out = nrow(X))),
                         type.measure = "deviance")  # Accuracy measure is deviance because AUC could not be used; number of observations is too small per fold
   
   # Store results
@@ -113,23 +112,29 @@ ggplot(alpha_10$results, aes(x = alpha)) +
   geom_line(aes(y = cvm_1se, color = "lambda.1se"), linewidth = 1.2) +
   geom_point(aes(y = cvm_min, color = "lambda.min"), size = 3) +
   geom_point(aes(y = cvm_1se, color = "lambda.1se"), size = 3) +
-  labs(title = "CV Error vs Alpha",
+  labs(title = "CV Error vs Alpha (10-Fold CV)",
        x = "Alpha (0 = Ridge, 1 = Lasso)",
        y = "CV Error (Deviance)",
        color = "Lambda Type") +
-  theme_minimal()
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+        axis.title.x = element_text(margin = margin(t = 10)),
+        axis.title.y = element_text(margin = margin(r = 10))) 
 
 ggplot(alpha_20$results, aes(x = alpha)) +
   geom_line(aes(y = cvm_min, color = "lambda.min"), linewidth = 1.2) +
   geom_line(aes(y = cvm_1se, color = "lambda.1se"), linewidth = 1.2) +
   geom_point(aes(y = cvm_min, color = "lambda.min"), size = 3) +
   geom_point(aes(y = cvm_1se, color = "lambda.1se"), size = 3) +
-  labs(title = "CV Error vs Alpha",
+  labs(title = "CV Error vs Alpha (20-Fold CV)",
        x = "Alpha (0 = Ridge, 1 = Lasso)",
        y = "CV Error (Deviance)",
        color = "Lambda Type") +
-  theme_minimal()
-# alpha_min will be used as it has lowest CV error and will thus maximize predictive accuracy
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+        axis.title.x = element_text(margin = margin(t = 10)),
+        axis.title.y = element_text(margin = margin(r = 10))) 
+# alpha_min will be used as it has the lowest CV error and will thus maximize predictive accuracy
 
 # Helper functions for next steps
 # Function to determine cutoffs for sensitivity, specificity, and classification
@@ -237,15 +242,24 @@ coef_10_min[coef_10_min!=0]
 # With 10-fold CV and using min for alpha and lambda, elastic net regression selected 9 relevant variables; 7 are negative and 2 are positive
 
 selected_10  <- sort(abs(coef_10_min[coef_10_min != 0]), decreasing = TRUE)
-selected_10 
-# TNF-a has the most influence
+selected_10 <- data.frame(Predictor = names(selected_10),
+                          Value = selected_10)
+selected_10$Predictor <- factor(selected_10$Predictor, levels = selected_10$Predictor)
+rownames(selected_10) <- NULL
+# Notes: TNF-a has the most influence
 
-# Ranking of top predictors TO-DO: make ggplot version
-par(mar = c(9, 4, 4, 2))
-barplot(selected_10, las = 2, col = "navy",
-        main = "Top Predictors - 10-Fold Elastic Net (lambda.min)",
-        ylab = "Coefficient", cex.names = 0.75)
-par(mar = c(5, 4, 4, 2))
+# Ranking of top predictors 
+ggplot(selected_10, aes(x = Predictor, y = Value)) +
+  geom_col(fill = "navy") +
+  geom_text(aes(label = signif(Value, 3)), vjust = -0.5) +
+  labs(title = "Top Selected Predictors - 20-Fold Elastic Net (lambda.min)",
+       x = "Predictor",
+       y = "Coefficient score") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+        axis.title.x = element_text(margin = margin(t = 8)),
+        axis.title.y = element_text(margin = margin(r = 10)),
+        axis.text.x = element_text(angle = 45, hjust = 1)) 
 
 # === 3.2 | ELASTIC NET MODEL (20-FOLD) ========
 set.seed(1717)
@@ -333,15 +347,24 @@ coef_20_min[coef_20_min!=0]
 # With 20-fold CV and using min for alpha and lambda, elastic net regression selected 9 relevant variables; 8 are negative and 1 is positive
 
 selected_20  <- sort(abs(coef_20_min[coef_20_min != 0]), decreasing = TRUE)
-selected_20 
+selected_20 <- data.frame(Predictor = names(selected_20),
+                          Value = selected_20)
+selected_20$Predictor <- factor(selected_20$Predictor, levels = selected_20$Predictor)
+rownames(selected_20) <- NULL
 # Notes: TNF-a has the most influence
 
-# Ranking of top predictors TO-DO: make ggplot version
-par(mar = c(9, 4, 4, 2))
-barplot(selected_20, las = 2, col = "maroon",
-        main = "Top Predictors - 20-Fold Elastic Net (lambda.min)",
-        ylab = "Coefficient", cex.names = 0.75)
-par(mar = c(5, 4, 4, 2))
+# Ranking of top predictors 
+ggplot(selected_20, aes(x = Predictor, y = Value)) +
+  geom_col(fill = "maroon") +
+  geom_text(aes(label = signif(Value, 3)), vjust = -0.5) +
+  labs(title = "Top Selected Predictors - 20-Fold Elastic Net (lambda.min)",
+       x = "Predictor",
+       y = "Coefficient score") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+        axis.title.x = element_text(margin = margin(t = 8)),
+        axis.title.y = element_text(margin = margin(r = 10)),
+        axis.text.x = element_text(angle = 45, hjust = 1)) 
 
 # Comparison plot for 10-fold vs 20-fold
 plot(AUC_test_10, col = "navy", main = "Test Set ROC: 10-Fold vs 20-Fold")
