@@ -53,14 +53,13 @@ print(sev_tab)
 cat("Class ratio (mild:severe):", round(sev_tab[1] / sev_tab[2], 2), "\n")
 #Classes reasonably balanced, so no resampling required?
 
-#Multicollinearity check maybe a correlation heatmap of the predictors
+#Multicollinearity check maybe a correlation heatmap of the predictors to be added
 
 # === 2.1 | MODEL MATRIX AND TRAINING/TEST SETS ========
 # Create model matrix for glmnet including all effects 
 X <- model.matrix(Severity ~., COV)[, -1]
 cat("Predictor matrix dimensions:", dim(X))
-cat("Predictor names:")
-print(colnames(X))
+cat("Predictor names:"); print(colnames(X))
 
 
 Y <- COV$Severity # severity set as response variable
@@ -80,10 +79,8 @@ X_test <- X[-train_index, ]
 Y_test <- Y[-train_index]
 
 ## Confirm class balance in train and test
-cat("Training set class distribution:")
-print(table(Y_train)) # 57 total, 42% in mild, 58% in severe
-cat("Test set class distribution:")
-print(table(Y_test)) # 19 total, 42% in mild, 58% in severe
+cat("Training set class distribution:"); print(table(Y_train)) # 57 total, 42% in mild, 58% in severe
+cat("Test set class distribution:"); print(table(Y_test)) # 19 total, 42% in mild, 58% in severe
 
 # === 2.2 | GRID SEARCH FOR ALPHA ========
 # Function to perform grid search for optimal alpha value with different n-folds 
@@ -123,17 +120,20 @@ alpha_search <- function (X, Y, nfolds){
 alpha_10 <- alpha_search(X_train, Y_train, 10)
 best_min_10 <- alpha_10$best_min
 best_1se_10 <- alpha_10$best_1se
+cat("Best 10 fold alpha (lambda.min):", best_min_10)
+cat("Best 10 foldalpha (lambda.1se):", best_1se_10)
 
 alpha_20 <- alpha_search(X_train, Y_train, 20)
 best_min_20 <- alpha_20$best_min
 best_1se_20 <- alpha_20$best_1se
+cat("Best 20 fold alpha (lambda.min):", best_min_20)
+cat("Best 20 fold alpha (lambda.1se):", best_1se_20)
 
 # Visualize alpha grid search to decide between alpha values
 ggplot(alpha_10$results, aes(x = alpha)) +
   geom_line(aes(y = cvm_min, color = "lambda.min"), linewidth = 1.2) +
   geom_line(aes(y = cvm_1se, color = "lambda.1se"), linewidth = 1.2) +
-  geom_point(aes(y = cvm_min, color = "lambda.min"), size = 3) +
-  geom_point(aes(y = cvm_1se, color = "lambda.1se"), size = 3) +
+  geom_vline(xintercept = best_min_10, linetype = "dashed") +
   labs(title = "CV Error vs Alpha (10-Fold CV)",
        x = "Alpha (0 = Ridge, 1 = Lasso)",
        y = "CV Error (Deviance)",
@@ -146,8 +146,7 @@ ggplot(alpha_10$results, aes(x = alpha)) +
 ggplot(alpha_20$results, aes(x = alpha)) +
   geom_line(aes(y = cvm_min, color = "lambda.min"), linewidth = 1.2) +
   geom_line(aes(y = cvm_1se, color = "lambda.1se"), linewidth = 1.2) +
-  geom_point(aes(y = cvm_min, color = "lambda.min"), size = 3) +
-  geom_point(aes(y = cvm_1se, color = "lambda.1se"), size = 3) +
+  geom_vline(xintercept = best_min_20, linetype = "dashed") +
   labs(title = "CV Error vs Alpha (20-Fold CV)",
        x = "Alpha (0 = Ridge, 1 = Lasso)",
        y = "CV Error (Deviance)",
@@ -189,20 +188,23 @@ prd_test_10 <- predict(cv_10, newx = X_test, type = "response", s = cv_10$lambda
 # Test prediction accuracy with AUC-ROC curves(Change plots to be made with ggplot and overlay curves)
 AUC_train_10 <- roc(Y_train, prd_train_10)
 AUC_test_10  <- roc(Y_test,  prd_test_10)
-auc(AUC_train_10)
-auc(AUC_test_10)
+cat("Training AUC:", auc(AUC_train_10))
+cat("Test AUC:    ", auc(AUC_test_10))
+
 
 # Determine cutoffs for model with 10-folds
 cut_train_10 <- get_cutoff(AUC_train_10)
-cut_train_10
 cut_test_10 <- get_cutoff(AUC_test_10)
-cut_test_10
+cat("Training set optimal cutoff:"); print(cut_train_10)
+cat("Test set optimal cutoff:"); print(cut_test_10)
 
 # Make confusion matrix for model
 conf_10 <- table(y = Y_test, yhat = as.numeric(prd_test_10 > cut_test_10$cutoff))
-conf_10
 metrics_10 <- get_metrics(conf_10)
-metrics_10
+cat("Confusion Matrix (10-Fold, Test Set):") 
+print(conf_10)
+cat("Performance Metrics (10-Fold, Test Set):") 
+print(metrics_10)
 
 # Plot ROC curve with optimal cutoff
 # Training set
@@ -260,10 +262,15 @@ ggroc(AUC_test_10, linewidth = 1.1) +
 # Obtain most significant coefficients as predicted by model
 coef(cv_10, s = cv_10$lambda.min)
 coef_10_min <- coef(cv_10,s = cv_10$lambda.min)[-1,1]
-coef_10_min[coef_10_min!=0] 
+
 # With 10-fold CV and using min for alpha and lambda, elastic net regression selected 9 relevant variables; 7 are negative and 2 are positive
 
 selected_10  <- sort(abs(coef_10_min[coef_10_min != 0]), decreasing = TRUE)
+cat("Selected predictors (10-Fold, lambda.min):") 
+print(round(coef_10_min[coef_10_min != 0], 4))
+cat("Number of non-zero predictors:", length(selected_10))
+cat("Most influential predictor:", names(selected_10)[1])
+
 selected_10 <- data.frame(Predictor = names(selected_10),
                           Value = selected_10)
 selected_10$Predictor <- factor(selected_10$Predictor, levels = selected_10$Predictor)
@@ -274,7 +281,7 @@ rownames(selected_10) <- NULL
 ggplot(selected_10, aes(x = Predictor, y = Value)) +
   geom_col(fill = "navy") +
   geom_text(aes(label = signif(Value, 3)), vjust = -0.5) +
-  labs(title = "Top Selected Predictors - 20-Fold Elastic Net (lambda.min)",
+  labs(title = "Top Selected Predictors - 10-Fold Elastic Net (lambda.min)",
        x = "Predictor",
        y = "Coefficient score") +
   theme_minimal() +
@@ -282,6 +289,24 @@ ggplot(selected_10, aes(x = Predictor, y = Value)) +
         axis.title.x = element_text(margin = margin(t = 8)),
         axis.title.y = element_text(margin = margin(r = 10)),
         axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+
+# what are your thoughts on this kinda graph instead
+df_coef_10 <- data.frame(
+  Predictor   = names(selected_10),
+  Coefficient = selected_10,
+  Direction   = ifelse(coef_10_min[names(selected_10)] > 0, "Positive", "Negative")
+)
+
+ggplot(df_coef_10, aes(x = reorder(Predictor, Coefficient), y = Coefficient, fill = Direction)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(values = c("Positive" = "navy", "Negative" = "maroon")) +
+  labs(title = "Top Predictors — 10-Fold Elastic Net (lambda.min)", x = "Predictor", y = "Coefficient(absolute value)", caption = "Red = associated with higher severity; Blue = associated with lower severity") +
+  theme_bw() +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+
+#it highlights what was pos and negative >:) 
 
 # === 3.2 | ELASTIC NET MODEL (20-FOLD) ========
 set.seed(1717)
@@ -295,19 +320,22 @@ prd_test_20  <- predict(cv_20, newx = X_test,  type = "response", s = cv_20$lamb
 # Test prediction accuracy with AUC-ROC curves
 AUC_train_20 <- roc(Y_train, prd_train_20)
 AUC_test_20  <- roc(Y_test,  prd_test_20)
-auc(AUC_train_20)
-auc(AUC_test_20)
+cat("Training AUC:", auc(AUC_train_20))
+cat("Test AUC:    ", auc(AUC_test_20))
 
 # Determine cutoffs for model with 10-folds
 cut_train_20 <- get_cutoff(AUC_train_20)
 cut_test_20 <- get_cutoff(AUC_test_20)
-cut_train_20
-cut_test_20
+cat("Training set optimal cutoff:"); print(cut_train_20)
+cat("Test set optimal cutoff:"); print(cut_test_20)
+
 
 # Make confusion matrix for model
 conf_20 <- table(y = Y_test, yhat = as.numeric(prd_test_20 > cut_test_20$cutoff))
 conf_20
 get_metrics(conf_20)
+cat("Confusion Matrix (20-Fold):"); print(conf_20)
+cat("Performance Metrics (20-Fold):"); print(get_metrics(conf_20))
 
 # Plot ROC curve with optimal cutoff
 # Training set
@@ -366,9 +394,17 @@ ggroc(AUC_test_20, linewidth = 1.1) +
 coef(cv_20, s = cv_20$lambda.min)
 coef_20_min <- coef(cv_20,s = cv_20$lambda.min)[-1,1]
 coef_20_min[coef_20_min!=0] 
+
+
 # With 20-fold CV and using min for alpha and lambda, elastic net regression selected 9 relevant variables; 8 are negative and 1 is positive
 
 selected_20  <- sort(abs(coef_20_min[coef_20_min != 0]), decreasing = TRUE)
+
+cat("Selected predictors (20-Fold):")
+print(round(coef_20_min[coef_20_min != 0], 4))
+cat("Number of non-zero predictors:", length(selected_20))
+cat("Most influential predictor:", names(selected_20)[1])
+
 selected_20 <- data.frame(Predictor = names(selected_20),
                           Value = selected_20)
 selected_20$Predictor <- factor(selected_20$Predictor, levels = selected_20$Predictor)
@@ -389,12 +425,14 @@ ggplot(selected_20, aes(x = Predictor, y = Value)) +
         axis.text.x = element_text(angle = 45, hjust = 1)) 
 
 # Comparison plot for 10-fold vs 20-fold
-plot(AUC_test_10, col = "navy", main = "Test Set ROC: 10-Fold vs 20-Fold")
-plot(AUC_test_20, col = "maroon", add = TRUE)
-legend("bottomright",
-       legend = c(paste0("10-Fold AUC = ", round(auc(AUC_test_10), 3)),
-                  paste0("20-Fold AUC = ", round(auc(AUC_test_20), 3))),
-       col = c("navy", "maroon"), lwd = 2, bty = "n")
+ggroc(list("10-Fold" = AUC_test_10, "20-Fold" = AUC_test_20), linewidth = 1) +
+  scale_color_manual(values = c("10-Fold" = "navy", "20-Fold" = "maroon")) +
+  geom_abline(slope = 1, intercept = 1, color = "grey") +
+  annotate("text", x = 0.25, y = 0.15, label = paste0("10-Fold AUC = ", round(auc(AUC_test_10), 3)), color = "navy", fontface = "bold") +
+  annotate("text", x = 0.25, y = 0.07, label = paste0("20-Fold AUC = ", round(auc(AUC_test_20), 3)), color = "maroon", fontface = "bold") +
+  labs(title = "Test Set ROC Curves: 10-Fold vs 20-Fold", x = "Specificity", y = "Sensitivity", color = "Model") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
 
 # For MN: please compare the predictors in the 10-fold and 20-fold models; idk how but show which ones wre exclusive in one and shared in both
 
