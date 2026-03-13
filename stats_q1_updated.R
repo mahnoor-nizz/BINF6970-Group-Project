@@ -30,6 +30,11 @@ cell_types <- ifelse(grepl("NAI", rownames(dat)), "Naive",
 
 table(cell_types)
 
+# Extract health status count
+health_status <- ifelse(grepl("HEA", rownames(dat)),"Healthy", "Melanoma")
+
+table(health_status)
+
 #--------------------- Part 0: Pre-processing ---------------------
 ##### Distribution of raw data #####
 # Histogram of all expression values across all genes
@@ -161,7 +166,7 @@ print(paste0("Proportion of gene pairs with |r| > 0.8: ", round(prop_high * 100,
 # Ensures PCA reflects patterns of co-variation across genes, not just which genes happen to have large absolute values.
 # It ensures all 156 genes contribute fairly to the principal components.
 
-##### Sample PCA #####
+##### PCA #####
 pca_res <- prcomp(dat, scale. = TRUE)
 summary(pca_res)
 
@@ -179,25 +184,7 @@ print(paste0("PC3 variance explained: ", round(var_explained[3], 2), "%"))
 print(paste0("Cumulative variance (PC1+PC2): ", round(sum(var_explained[1:2]), 2), "%"))
 
 
-##### Gene PCA #####
-# Transpose: genes become rows, samples become columns
-pca_genes <- prcomp(t(dat), scale. = TRUE)
-
-# Variance explained
-eigenvalues_genes <- pca_genes$sdev^2
-var_genes_explained <- eigenvalues_genes / sum(eigenvalues_genes) * 100
-
-# Build plot data frame
-gene_df <- as.data.frame(pca_genes$x)
-gene_df$gene <- rownames(gene_df)
-
-# Print key PCs
-print(paste0("Gene PC1 variance explained: ", round(var_genes_explained[1], 2), "%"))
-print(paste0("Gene PC2 variance explained: ", round(var_genes_explained[2], 2), "%"))
-print(paste0("Gene PC3 variance explained: ", round(var_genes_explained[3], 2), "%"))
-print(paste0("Cumulative variance (PC1+PC2): ", round(sum(var_genes_explained[1:2]), 2), "%"))
-
-##### Scree Plot for Samples #####
+##### Scree Plot #####
 # Build a data frame with 2 columns:
 # PC — the PC number
 # Eigenvalue — the raw eigenvalue for each PC (sdev^2)
@@ -216,31 +203,11 @@ ggplot(scree_samples_df, aes(x = PC, y = Eigenvalue)) +
   scale_x_continuous(breaks = 1:20) +
   theme_minimal(base_size = 12) +
   labs(
-    title   = "Scree Plot for Samples",
+    title   = "Scree Plot",
     x       = "PC Number",
     y       = "Eigenvalue"
   )
 
-
-##### Scree Plot for gene #####
-# Scree plot data frame — capped at 30 PCs
-# (gene PCA can only have min(156, 30)-1 = 29 meaningful PCs
-# since we only have 30 samples as variables)
-scree_genes_df <- data.frame(
-  PC         = 1:min(30, length(eigenvalues_genes)),
-  Eigenvalue = eigenvalues_genes[1:min(30, length(eigenvalues_genes))]
-)
-
-ggplot(scree_genes_df, aes(x = PC, y = Eigenvalue)) +
-  geom_line(color = "steelblue", linewidth = 0.8) +
-  geom_point(color = "steelblue", size = 3) +
-  scale_x_continuous(breaks = 1:30) +
-  theme_minimal(base_size = 12) +
-  labs(
-    title    = "Scree Plot for Genes",
-    x        = "PC Number",
-    y        = "Eigenvalue"
-  )
 
 #--------------- Part 2: Visualize and Investigate PCs --------------
 
@@ -263,7 +230,7 @@ pca_df$CellType[grepl("MEM", pca_df$sample_names)] <- "Memory"
 pca_df$CellType <- factor(pca_df$CellType, levels = c("Naïve", "Effector", "Memory"))
 
 
-# --- PCA Scatter Plot of Samples: PC1 vs PC2 ---
+# --- PCA Scatter Plot: PC1 vs PC2 ---
 # Each point = one sample, colour = cell type, shape = disease status
 ggplot(pca_df, aes(x = PC1, y = PC2, color = CellType, shape = Status)) +
   geom_point(size = 3.5, alpha = 0.85) +
@@ -273,126 +240,37 @@ ggplot(pca_df, aes(x = PC1, y = PC2, color = CellType, shape = Status)) +
   ) +
   scale_shape_manual(
     name = "Subject Status",
-    values = c("Healthy" = 15, "Melanoma" = 17) # square = healthy, triangle = melanoma
+    values = c("Healthy" = 15, "Melanoma" = 17)
   ) +
   theme_minimal(base_size = 12) +
   theme(legend.position = "right") +
   labs(
-    title = "Sample PCA: T-Cell Gene Expression (PC1 vs PC2)",
+    title = "PCA: T-Cell Gene Expression (PC1 vs PC2)",
     x = paste0("PC1 (", round(var_explained[1], 1), "% variance explained)"),
     y = paste0("PC2 (", round(var_explained[2], 1), "% variance explained)")
   )
 
+#--------------- Part 3: Loadings Scatter Plot --------------
 
-# --- PCA Scatter Plot of Genes: PC1 vs PC2 ---
-# Each point = one gene
-gene_df <- as.data.frame(pca_genes$x)
+# Extract the loadings (rotation) matrix from the PCA
+# Each row = one gene, each column = one PC
+# The loading value indicates how strongly each gene contributes to that PC
+loadings <- as.data.frame(pca_res$rotation)
+loadings$gene <- rownames(loadings)
 
-ggplot(gene_df, aes(x = PC1, y = PC2)) +
-  geom_point(size = 2, alpha = 0.6, color = "steelblue") +
-  theme_minimal(base_size = 12) +
+# Plot
+ggplot(loadings, aes(x = PC1, y = PC2)) +
+  geom_point(alpha = 0.6) +
+  theme_minimal() +
   labs(
-    title   = "Gene PCA: Expression Patterns Across Samples (PC1 vs PC2)",
-    x       = paste0("PC1 (", round(var_genes_explained[1], 1), "%)"),
-    y       = paste0("PC2 (", round(var_genes_explained[2], 1), "%)")
+    title = "Gene Loadings Plot (PC1 vs PC2)",
+    x = "PC1 Loading",
+    y = "PC2 Loading"
   )
 
+# Check which genes have the highest positive/negative PC1 loadings
+head(loadings[order(-loadings$PC1), c("gene", "PC1")], 5)
+head(loadings[order( loadings$PC1), c("gene", "PC1")], 5)
 
-##### Outlier Detection for PCA #####
-# We assess outliers in two complementary ways:
-# (1) In PCA space — samples with extreme PC scores
-# (2) Mahalanobis distance — multivariate distance from group centroid
-# --- Method 1: PC Score Outliers (boxplots on PC1 and PC2) ---
-par(mfrow = c(1, 2)) # Splits the plot window into 1 row and 2 columns so both boxplots appear side by side.
-
-boxplot(pca_df$PC1,
-  main = "PC1 Scores",
-  ylab = "Score",
-  col = "lightblue",
-  outline = TRUE
-) # makes the boxplot show individual points beyond the whiskers as circles — these are the potential outliers.
-stripchart(pca_df$PC1,
-  vertical = TRUE, method = "jitter",
-  pch = 16, col = "darkblue", add = TRUE
-)
-
-boxplot(pca_df$PC2,
-  main = "PC2 Scores",
-  ylab = "Score",
-  col = "lightcoral",
-  outline = TRUE
-)
-stripchart(pca_df$PC2,
-  vertical = TRUE, method = "jitter",
-  pch = 16, col = "darkred", add = TRUE
-) # overlays all individual data points with slight horizontal jitter so you can see every sample, not just the flagged ones.
-
-par(mfrow = c(1, 1))
-
-# Flag samples whose PC1 or PC2 score exceeds 3 SD from the mean
-# Computes the mean and standard deviation for each PC to define the outlier threshold.
-pc1_mean <- mean(pca_df$PC1)
-pc1_sd <- sd(pca_df$PC1)
-pc2_mean <- mean(pca_df$PC2)
-pc2_sd <- sd(pca_df$PC2)
-
-# is this sample more than 3 standard deviations away from the centre? The 3 SD rule comes from the normal distribution where 99.7% of data falls within 3 SD — anything beyond is unusual.
-outliers_pc <- pca_df[
-  abs(pca_df$PC1 - pc1_mean) > 3 * pc1_sd |
-    abs(pca_df$PC2 - pc2_mean) > 3 * pc2_sd,
-  c("sample_names", "CellType", "Status", "PC1", "PC2")
-]
-print("Samples flagged as outliers (>3 SD on PC1 or PC2):")
-print(outliers_pc)
-
-# --- Method 2: Mahalanobis Distance (per cell type group) ---
-# Mahalanobis distance accounts for correlation structure within each group, stretching and squishing distances based on how the data is actually spread.
-mah_dist <- numeric(nrow(pca_df))
-
-# Use first 3 PCs (captures majority of variance, avoids noise PCs)
-pc_cols <- paste0("PC", 1:3)
-
-# Loops through each cell type separately — this is important to find outliers within each group, not samples that are just far from the overall centre because they belong to a different cell type.
-for (ct in unique(pca_df$CellType)) {
-  idx <- which(pca_df$CellType == ct)
-  group <- as.matrix(pca_df[idx, pc_cols])
-
-  # Need at least p+1 observations to invert covariance matrix
-  if (nrow(group) > ncol(group)) {
-    cov_mat <- cov(group) # the covariance matrix describing how the 3 PCs relate to each other within the group
-    center <- colMeans(group) # the centroid (centre point) of the group
-    mah_dist[idx] <- mahalanobis(group, center = center, cov = cov_mat)
-  } # computes how far each sample is from that centroid, adjusted for the covariance structure
-}
-
-pca_df$MahalanobisD <- mah_dist
-
-# Chi-squared critical value: df = 3 PCs, alpha = 0.001 (conservative). Any sample exceeding this threshold is flagged
-chi_crit <- qchisq(0.999, df = 3)
-pca_df$Outlier <- pca_df$MahalanobisD > chi_crit
-
-# Plot Mahalanobis distances with threshold
-ggplot(pca_df, aes(
-  x = seq_len(nrow(pca_df)), y = MahalanobisD,
-  color = CellType, shape = Outlier
-)) +
-  geom_point(size = 3) +
-  geom_hline(yintercept = chi_crit, linetype = "dashed", color = "red", linewidth = 0.8) +
-  scale_color_manual(values = c("Naïve" = "#2ca02c", "Effector" = "#d62728", "Memory" = "#1f77b4")) +
-  scale_shape_manual(values = c("FALSE" = 16, "TRUE" = 8), labels = c("Normal", "Outlier")) + # normal samples get a filled circle (16) and outliers get a star/asterisk shape (8)
-  theme_minimal(base_size = 12) +
-  labs(
-    title    = "Mahalanobis Distance per Sample (within Cell Type groups)",
-    subtitle = paste0("Red dashed line = χ²(df=3, p=0.001) threshold = ", round(chi_crit, 2)),
-    x        = "Sample Index",
-    y        = "Mahalanobis Distance",
-    shape    = "Outlier Status"
-  )
-
-# Print flagged outliers
-outliers_mah <- pca_df[
-  pca_df$Outlier == TRUE,
-  c("sample_names", "CellType", "Status", "PC1", "PC2", "MahalanobisD")
-]
-print("Samples flagged as multivariate outliers (Mahalanobis, p < 0.001):")
-print(outliers_mah)
+# Then check the mean PC1 score per cell type to confirm direction
+aggregate(PC1 ~ CellType, data = pca_df, FUN = mean)
