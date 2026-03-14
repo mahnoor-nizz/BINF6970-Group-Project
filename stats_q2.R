@@ -42,6 +42,24 @@ ggplot(data.frame(Age = COV$AGE, Severity = COV$Severity), aes(x = Severity, y =
   theme_bw() +
   theme(legend.position = "none")
 
+# Cytokine distribution by severity
+# Identify cytokine/analyte columns 
+cytokine_cols <- setdiff(colnames(COV), c("AGE", "SEX", "Severity"))
+
+# Reshape to long format 
+COV_long <- COV %>%
+  select(all_of(c(cytokine_cols, "Severity"))) %>%
+  pivot_longer(cols = all_of(cytokine_cols), names_to = "Cytokine", values_to = "Value")
+
+ggplot(COV_long, aes(x = Severity, y = Value, fill = Severity)) +
+  geom_bar(stat = "summary", fun = "mean") +
+  scale_fill_manual(values = c("Mild" = "navy", "Severe" = "maroon")) +
+  facet_wrap(~ Cytokine, ncol = 7) +
+  labs(title = "Mean Cytokine Levels by COVID-19 Severity",
+       x = NULL, y = "Mean Value") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
 # === 1.3 | ASSUMPTION CHECKS ========
 #Class Balance
 sev_tab <- table(COV$Severity)
