@@ -507,4 +507,15 @@ for (i in names(select_10)) {if (i %in% colnames(X)) {
 print(wilcox_results[order(wilcox_results$p_value), ])
 
 
+# Modelling effects of age and cytokines 
+summary(glm(Severity ~ AGE + `TNF-α` + CD28 + `MCP-1` + `IL-6` + CD27 + `CCL2/JE/MCP-1` + `CXCL10/IP-10/CRG-2`, data = COV, family = binomial)) # Predictors from 10-fold (TLR-2 not included as it is not a cytokine); IL-6, CD28, and MCP-1 remain statistically significant, 
 
+summary(glm(Severity ~ AGE + `TNF-α` + `IL-6` + CD27 + CD28 + `MCP-1` + `PD-L2-5` + `PD-L2`, data = COV, family = binomial)) # Predictors from 20-fold (PTX3 not included as it is not a cytokine)
+# Age is not significant when cytokines are included, so cytokines may be confounding; as such, need to see interactions of age with cytokines; IL-6 remains statistically significant, PD-L2-5 and PD-L2 are multicollinear
+
+# Modelling effects of age interactions with cytokines
+summary(glm(Severity ~ AGE * (`TNF-α` + CD28 + `MCP-1` + `IL-6` + CD27 + `CCL2/JE/MCP-1` + `CXCL10/IP-10/CRG-2`), data = COV, family = binomial)) # Predictors from 10-fold
+# TNF-a, CD28, IL-6, and CD27, and their interactions with age are statistically significant
+
+summary(glm(Severity ~ AGE * (`TNF-α` + `IL-6` + CD27 + CD28 + `MCP-1` + `PD-L2-5` + `PD-L2`), data = COV, family = binomial)) # Predictors from 20-fold
+# Age is not significant when alone, but is significant when including interactions; effects of CD27 and TNF-a decrease with age while effects of CD28, IL-6, and PD-L2-5 increase with age
