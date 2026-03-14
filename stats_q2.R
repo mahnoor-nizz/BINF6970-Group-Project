@@ -490,22 +490,6 @@ ggplot(data.frame(Age = COV$AGE, Prob = prd_all_10, Severity = factor(COV$Severi
        x = "Age (years)", y = "Probability of Severity") +
   theme_bw()
 
-### I don't think we really need to do this part since she never taught us but I'll leave this here for now
-#I'm also good with getting rid of it i dont think its necessary
-# Statistical significance of cytokines
-wilcox_results <- data.frame()
-
-for (i in names(select_10)) {if (i %in% colnames(X)) {
-  test <- wilcox.test(X[, i] ~ COV$Severity)
-  
-  wilcox_results <- rbind(wilcox_results, data.frame(
-    Predictor = i,
-    W_statistic = test$statistic,
-    p_value = round(test$p.value, 4),
-    Significant = ifelse(test$p.value < 0.05, "Yes", "No")))}}
-
-print(wilcox_results[order(wilcox_results$p_value), ])
-
 
 # Modelling effects of age and cytokines 
 summary(glm(Severity ~ AGE + `TNF-α` + CD28 + `MCP-1` + `IL-6` + CD27 + `CCL2/JE/MCP-1` + `CXCL10/IP-10/CRG-2`, data = COV, family = binomial)) # Predictors from 10-fold (TLR-2 not included as it is not a cytokine); IL-6, CD28, and MCP-1 remain statistically significant, 
