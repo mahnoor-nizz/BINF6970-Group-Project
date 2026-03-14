@@ -301,7 +301,7 @@ ggplot(df_coef_10, aes(x = reorder(Predictor, Coefficient), y = Coefficient, fil
   geom_col() +
   coord_flip() +
   scale_fill_manual(values = c("Positive" = "navy", "Negative" = "maroon")) +
-  labs(title = "Top Predictors — 10-Fold Elastic Net (lambda.min)", x = "Predictor", y = "Coefficient(absolute value)", caption = "Red = associated with higher severity; Blue = associated with lower severity") +
+  labs(title = "Top Predictors 10-Fold Elastic Net", x = "Predictor", y = "Coefficient(absolute value)", caption = "Red = associated with higher severity; Blue = associated with lower severity") +
   theme_bw() +
   theme(plot.title = element_text(face = "bold", hjust = 0.5))
 
