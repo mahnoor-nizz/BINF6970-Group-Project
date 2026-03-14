@@ -332,7 +332,7 @@ cat("Test set optimal cutoff:"); print(cut_test_20)
 # Make confusion matrix for model
 conf_20 <- table(y = Y_test, yhat = as.numeric(prd_test_20 > cut_test_20$cutoff))
 conf_20
-metrics_10 <- get_metrics(conf_20)
+metrics_20 <- get_metrics(conf_20)
 cat("Confusion Matrix (20-Fold):\n"); print(conf_20)
 cat("Performance Metrics (20-Fold):\n"); print(get_metrics(conf_20))
 
